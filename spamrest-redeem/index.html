@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>SpamRest · AppSumo Integration Setup</title>
+<meta name="description" content="Configure the SpamRest AppSumo integration — webhook & OAuth URLs, partner credentials, and live verification endpoints." />
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%23635bff'/><text x='50' y='70' font-size='58' font-family='Arial' font-weight='bold' fill='white' text-anchor='middle'>S</text></svg>" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+<div class="page">
+
+  <header class="masthead">
+    <div class="brand">
+      <div class="brand-mark">S</div>
+      <div class="brand-text">
+        <span class="title">SpamRest</span>
+        <span class="subtitle">AppSumo Integration Setup</span>
+      </div>
+    </div>
+    <span class="badge neutral">Licensing API v2</span>
+  </header>
+
+  <p class="intro">Use this page to wire SpamRest up to AppSumo. The URLs below are generated from <strong>this site's own address</strong>, so whatever GitHub Pages domain you deploy to is what gets shown — no editing required.</p>
+
+  <!-- ============ STEP 1 ============ -->
+  <section class="step">
+    <div class="step-head"><span class="step-num">1</span><h2>Paste these URLs into your AppSumo Partner Portal</h2></div>
+
+    <div class="field">
+      <label>Webhook URL</label>
+      <div class="copy-row">
+        <input readonly id="webhook-url" value="" />
+        <button class="copy-btn" data-copy="#webhook-url">Copy</button>
+      </div>
+      <p class="hint" id="webhook-note"></p>
+    </div>
+
+    <div class="field">
+      <label>OAuth Redirect URL</label>
+      <div class="copy-row">
+        <input readonly id="oauth-url" value="" />
+        <button class="copy-btn" data-copy="#oauth-url">Copy</button>
+      </div>
+      <p class="hint">Live on GitHub Pages — AppSumo's <code>GET → 200</code> validation passes against this URL as-is.</p>
+    </div>
+  </section>
+
+  <!-- ============ STEP 2 ============ -->
+  <section class="step">
+    <div class="step-head"><span class="step-num">2</span><h2>Enter your Partner Portal credentials</h2></div>
+
+    <div class="field">
+      <label>Client ID</label>
+      <div class="copy-row">
+        <input readonly id="client-id" value="muhammad.arslan@opticommerce.co.uk" />
+        <button class="copy-btn" data-copy="#client-id">Copy</button>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Client Secret</label>
+      <div class="copy-row">
+        <input type="password" id="client-secret" placeholder="Paste from Partner Portal (not stored)" autocomplete="off" />
+        <button class="copy-btn ghost" data-reveal="#client-secret">Show</button>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>API Key <span class="help" title="Found in the AppSumo Partner Portal, hidden by default — click the eye icon to reveal.">?</span></label>
+      <div class="copy-row">
+        <input type="password" id="api-key" placeholder="Paste from Partner Portal (not stored)" autocomplete="off" />
+        <button class="copy-btn ghost" data-reveal="#api-key">Show</button>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>OAuth Redirect URI <span class="help" title="Must match the OAuth Redirect URL above exactly.">?</span></label>
+      <div class="copy-row">
+        <input id="redirect-uri" value="" />
+        <button class="copy-btn" data-copy="#redirect-uri">Copy</button>
+      </div>
+      <p class="hint">Change only if you are behind a reverse proxy with a different public URL.</p>
+    </div>
+
+    <div class="callout warn">
+      <span class="ico">🔒</span>
+      <p><strong>Never commit secrets.</strong> Client Secret and API Key live only in this browser field and your AppSumo backend — they must never be saved into the public GitHub Pages repo.</p>
+    </div>
+  </section>
+
+  <!-- ============ VERIFICATION ENDPOINTS ============ -->
+  <section class="step">
+    <div class="step-head"><span class="step-num">✓</span><h2>Live verification endpoints</h2></div>
+    <p class="intro" style="margin-top:0">These JSON endpoints are served directly by GitHub Pages. Open each to confirm it responds before validating in the Partner Portal.</p>
+
+    <div class="endpoint" id="ep-oauth">
+      <div class="ep-meta"><span class="badge get">GET</span><a class="ep-path" href="appsumo/oauth/" target="_blank" rel="noopener">/appsumo/oauth</a></div>
+      <div class="ep-result"><span class="status-pill" data-status>checking…</span></div>
+    </div>
+    <p class="hint">OAuth redirect / redemption landing — returns <code>200 OK</code>. ✅ Fully works on GitHub Pages.</p>
+
+    <div class="endpoint" id="ep-webhook">
+      <div class="ep-meta"><span class="badge get">GET</span><a class="ep-path" href="appsumo/webhook" target="_blank" rel="noopener">/appsumo/webhook</a></div>
+      <div class="ep-result"><span class="status-pill" data-status>checking…</span></div>
+    </div>
+    <p class="hint">Returns <code>{"event":"purchase","success":true}</code> on GET.</p>
+
+    <div class="callout danger">
+      <span class="ico">⚠️</span>
+      <p><strong>Webhook caveat — read this.</strong> AppSumo validates the webhook with a <code>POST</code>, but GitHub Pages only answers <code>GET</code> (a POST returns <code>405</code>). So the webhook URL <em>cannot</em> pass validation on Pages alone. Point the Webhook URL at a tiny serverless function instead (Cloudflare Workers / Netlify / Vercel) — copy-paste handler below — or keep your existing WordPress REST route. The OAuth Redirect URL above works on Pages with no backend.</p>
+    </div>
+
+    <details class="snippet">
+      <summary>Cloudflare Worker — drop-in webhook receiver (returns the exact JSON AppSumo expects)</summary>
+      <div class="code-block">
+        <div class="code-head"><span class="code-lang">javascript</span><button class="copy-btn" data-copy-code>Copy</button></div>
+<pre><code>export default {
+  async fetch(request) {
+    if (request.method === 'GET') {
+      return Response.json({ status: 'ok', success: true });
+    }
+    if (request.method === 'POST') {
+      const body = await request.json().catch(() => ({}));
+      const event = body.event || 'purchase';
+      // TODO: persist body.license_key, handle event, verify HMAC signature.
+      return Response.json({ event, success: true });
+    }
+    return new Response('Method Not Allowed', { status: 405 });
+  }
+};</code></pre>
+      </div>
+    </details>
+  </section>
+
+  <footer class="site-footer">
+    <p>SpamRest · Email Spam Shield — AppSumo Licensing v2 integration helper. Secrets are never stored or transmitted by this page.</p>
+  </footer>
+
+</div>
+<script src="app.js"></script>
+</body>
+</html>
